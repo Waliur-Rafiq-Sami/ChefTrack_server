@@ -80,7 +80,13 @@ async function run() {
     });
 
     //allFoods
-    app.get("/allFoods");
+    app.get("/allFood", async (req, res) => {
+      const item = req.body;
+      console.log(item);
+
+      const cursor = await FoodsCollection.find().toArray();
+      res.send(cursor);
+    });
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
