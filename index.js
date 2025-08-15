@@ -2,7 +2,7 @@ const express = require("express");
 const cors = require("cors");
 
 require("dotenv").config();
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -86,6 +86,21 @@ async function run() {
 
       const cursor = await FoodsCollection.find().toArray();
       res.send(cursor);
+    });
+    //Update a food
+    app.put("/updateFood", async (req, res) => {
+      const data = req.body;
+
+      const updatedFields = { ...data };
+      console.log(updatedFields);
+
+      delete updatedFields._id;
+      const filter = { _id: new ObjectId(data.id) };
+      const updateDoc = {
+        $set: updatedFields,
+      };
+      const result = await FoodsCollection.updateOne(filter, updateDoc);
+      res.send(result);
     });
 
     // Send a ping to confirm a successful connection
