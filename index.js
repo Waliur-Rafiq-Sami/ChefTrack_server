@@ -71,6 +71,21 @@ async function run() {
 
     //foods
 
+    //Get some food
+    app.get("/someFood", async (req, res) => {
+      const item = req.query;
+      const { foodType, arrayLength } = item;
+      // console.log(item);
+      // console.log(foodType);
+      // console.log(arrayLength);
+      const query = { foodType: foodType };
+      const result = await FoodsCollection.find(query)
+        .limit(parseInt(arrayLength))
+        .toArray();
+      console.log(result.length);
+      res.send(result);
+    });
+
     // AddFood
     app.post("/addFoods", async (req, res) => {
       const newFoodItem = req.body;
@@ -100,6 +115,14 @@ async function run() {
         $set: updatedFields,
       };
       const result = await FoodsCollection.updateOne(filter, updateDoc);
+      res.send(result);
+    });
+
+    //single Food delete
+    app.delete("/DeleteFood/:id", async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const result = await FoodsCollection.deleteOne(filter);
       res.send(result);
     });
 
