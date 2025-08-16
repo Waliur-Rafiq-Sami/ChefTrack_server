@@ -38,6 +38,10 @@ async function run() {
     const userInformationCollection = client
       .db("chefTrack")
       .collection("userInformation");
+    // PurchaseCollection
+    const PurchaseCollection = client
+      .db("chefTrack")
+      .collection("PurchaseCollection");
 
     //userInformation
     app.get("/profile/:email", async (req, res) => {
@@ -82,7 +86,7 @@ async function run() {
       const result = await FoodsCollection.find(query)
         .limit(parseInt(arrayLength))
         .toArray();
-      console.log(result.length);
+      // console.log(result.length);
       res.send(result);
     });
 
@@ -97,7 +101,7 @@ async function run() {
     //allFoods
     app.get("/allFood", async (req, res) => {
       const item = req.body;
-      console.log(item);
+      // console.log(item);
 
       const cursor = await FoodsCollection.find().toArray();
       res.send(cursor);
@@ -107,7 +111,7 @@ async function run() {
       const data = req.body;
 
       const updatedFields = { ...data };
-      console.log(updatedFields);
+      // console.log(updatedFields);
 
       delete updatedFields._id;
       const filter = { _id: new ObjectId(data.id) };
@@ -124,6 +128,243 @@ async function run() {
       const filter = { _id: new ObjectId(id) };
       const result = await FoodsCollection.deleteOne(filter);
       res.send(result);
+    });
+
+    // card data Section
+    // post card data
+    // app.post("/MyPurchasePage", async (req, res) => {
+    //   const { email, foodId, quantity } = req.body;
+
+    //   if (!email || !foodId || !quantity) {
+    //     return res.status(400).send({ error: "Missing required fields" });
+    //   }
+    //   const purchaseDate = new Date().toISOString();
+    //   try {
+    //     // Step 1: Try updating existing item
+    //     // const updateResult = await PurchaseCollection.updateOne(
+    //     //   { email, "purchaseItems.foodId": foodId }, // match existing item
+    //     //   {
+    //     //     $inc: { "purchaseItems.$.quantity": quantity }, // add to quantity
+    //     //     $set: { "purchaseItems.$.purchaseDate": purchaseDate }, // update date
+    //     //   }
+    //     // );
+
+    //     // if (updateResult.matchedCount === 0) {
+    //     // Step 2: If no existing item, push new one
+
+    //     const ifFindId = await PurchaseCollection.findOne({
+    //       email,
+    //       "purchaseItems.foodId": foodId,
+    //     });
+    //     console.log(ifFindId);
+
+    //     if (!ifFindId) {
+    //       const result = await PurchaseCollection.updateOne(
+    //         { email },
+    //         {
+    //           $push: {
+    //             purchaseItems: { foodId, quantity, purchaseDate },
+    //           },
+    //         },
+    //         { upsert: true }
+    //       );
+    //       res.send(result);
+    //     }
+    //     // }
+    //     // res.send({ success: true, message: "Purchase updated/added" });
+    //   } catch (error) {
+    //     console.error("Error in purchase:", error);
+    //     res.status(500).send({ error: "Database error" });
+    //   }
+    // });
+    app.post("/MyPurchasePage", async (req, res) => {
+      const { email, foodId, purchaseDate, quantity = 1 } = req.body;
+
+      const userPurchase = await PurchaseCollection.findOne({ email });
+
+      if (!userPurchase) {
+        // Create new user
+        const newDoc = {
+          email,
+          purchaseItems: [{ foodId, purchaseDate, quantity }],
+        };
+        await PurchaseCollection.insertOne(newDoc);
+        return res.send({
+          success: true,
+          message: "Item added to cart",
+          data: newDoc,
+        });
+      }
+
+      // Check duplicate
+      if (userPurchase.purchaseItems.some((item) => item.foodId === foodId)) {
+        return res.send({ success: false, message: "Item already in cart" });
+      }
+
+      // Push new item
+      const result = await PurchaseCollection.updateOne(
+        { email },
+        { $push: { purchaseItems: { foodId, purchaseDate, quantity } } }
+      );
+
+      return res.send({ success: true, message: "Item added to cart", result });
+    });
+
+    // // get card data
+    // app.get("/MyPurchasePage", async (req, res) => {
+    //   const email = req.query.email;
+    //   if (!email) return res.status(400).send({ error: "Email is required" });
+    //   try {
+    //     const userPurchases = await PurchaseCollection.findOne({ email });
+    //     // res.send(userPurchases || { email, purchaseItems: [] });
+    //     const id = [];
+    //     console.log(userPurchases);
+    //     userPurchases.purchaseItems.map((i) => id.push(i.foodId));
+    //     console.log(id); // res
+    //     //         [
+    //     //   '689f26d1a322c4a5f436c2b3',
+    //     //   '689f2760a322c4a5f436c2b9',
+    //     //   '689f26d1a322c4a5f436c2b4',
+    //     //   '689f2760a322c4a5f436c2b7',
+    //     //   '689f2760a322c4a5f436c2b8',
+    //     //   '689f2760a322c4a5f436c2ba',
+    //     //   '689f2760a322c4a5f436c2bb',
+    //     //   '689f2760a322c4a5f436c2bc'
+    //     // ]
+    //     // i need the full information for those ids
+    //   const result = await FoodsCollection.find({new ObjectId=id});
+
+    //   } catch (error) {
+    //     console.error("Error fetching purchases:", error);
+    //     res.status(500).send({ error: "Database error" });
+    //   }
+    // });
+    // // get card data
+
+    // get card data
+    app.get("/MyPurchasePage", async (req, res) => {
+      const email = req.query.email;
+      if (!email) return res.status(400).send({ error: "Email is required" });
+
+      const userPurchases = await PurchaseCollection.findOne({ email });
+
+      // if user has no purchases, return empty array
+      if (!userPurchases || !userPurchases.purchaseItems) {
+        return res.send([]);
+      }
+
+      // extract food IDs and convert to ObjectId
+      const foodIds = userPurchases.purchaseItems.map(
+        (item) => new ObjectId(item.foodId)
+      );
+
+      // get full food info for those IDs
+      const fullFoods = await FoodsCollection.find({
+        _id: { $in: foodIds },
+      }).toArray();
+
+      // merge quantity & purchaseDate with the food info
+      const purchasesWithDetails = fullFoods.map((food) => {
+        const purchaseInfo = userPurchases.purchaseItems.find(
+          (item) => item.foodId === food._id.toString()
+        );
+        return {
+          ...food,
+          quantity: purchaseInfo.quantity,
+          purchaseDate: purchaseInfo.purchaseDate,
+        };
+      });
+      res.send(purchasesWithDetails);
+    });
+
+    // Delete card data
+    app.delete("/MyPurchasePage", async (req, res) => {
+      const { email, foodId } = req.body;
+      if (!email || !foodId) {
+        return res.status(400).send({ error: "Email and foodId are required" });
+      }
+      try {
+        await PurchaseCollection.updateOne(
+          { email },
+          { $pull: { purchaseItems: { foodId } } }
+        );
+        res.send({ success: true, message: "Item removed from purchases" });
+      } catch (error) {
+        console.error("Error deleting purchase:", error);
+        res.status(500).send({ error: "Database error" });
+      }
+    });
+
+    // Update quantity
+    app.patch("/MyPurchasePage/updateQuantity", async (req, res) => {
+      const { email, foodId, quantity } = req.body;
+
+      if (!email || !foodId || !quantity) {
+        return res.send({ error: "Missing required fields" });
+      }
+
+      // Update the quantity of the existing item
+      const result = await PurchaseCollection.updateOne(
+        { email, "purchaseItems.foodId": foodId },
+        {
+          $set: { "purchaseItems.$.quantity": quantity },
+        }
+      );
+
+      if (result.matchedCount === 0) {
+        return res.send({ error: "Item not found in purchases" });
+      }
+
+      res.send({ success: true, message: "Quantity updated", result });
+    });
+
+    // get total quantity
+    app.get("/MyPurchasePage/totalQuantity", async (req, res) => {
+      const { email } = req.query;
+      // console.log(email);
+      if (!email) {
+        return res.status(400).send({ error: "Email is required" });
+      }
+      const userPurchase = await PurchaseCollection.findOne({ email });
+      if (!userPurchase || !userPurchase.purchaseItems) {
+        return res.send({ totalQuantity: 0 });
+      }
+      const totalQuantity = userPurchase.purchaseItems.reduce(
+        (sum, item) => sum + item.quantity,
+        0 //Technically, reduce can work without the 0, but it behaves differently—and in your case, it can cause problems. Let’s break it down.
+      );
+      res.send({ totalQuantity });
+    });
+
+    // Remove all items from a user's purchase
+    app.get("/MyPurchasePage/clearCard", async (req, res) => {
+      const { email } = req.query;
+
+      if (!email) {
+        return res.status(400).send({ error: "Email is required" });
+      }
+
+      try {
+        // Update the user's purchase document to remove all items
+        const result = await PurchaseCollection.updateOne(
+          { email },
+          { $set: { purchaseItems: [] } }
+        );
+
+        if (result.modifiedCount === 0) {
+          return res
+            .status(404)
+            .send({ message: "No purchases found to clear" });
+        }
+
+        res.send({
+          message: "All items removed successfully",
+          totalQuantity: 0,
+        });
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ error: "Failed to clear purchases" });
+      }
     });
 
     // Send a ping to confirm a successful connection
