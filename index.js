@@ -9,7 +9,11 @@ const port = process.env.PORT || 5000;
 
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: [
+      "http://localhost:5173",
+      "https://cheftrack-ee7fd.web.app",
+      "https://cheftrack-ee7fd.firebaseapp.com",
+    ],
     credentials: true,
   })
 );
@@ -74,6 +78,10 @@ async function run() {
     });
 
     //foods
+    app.get("/allFood/count", async (req, res) => {
+      const count = await FoodsCollection.estimatedDocumentCount();
+      res.send(count);
+    });
 
     //Get some food
     app.get("/someFood", async (req, res) => {
@@ -99,13 +107,58 @@ async function run() {
     });
 
     //allFoods
-    app.get("/allFood", async (req, res) => {
-      const item = req.body;
-      // console.log(item);
+    // app.get("/allFood", async (req, res) => {
+    //   const data = req.query;
+    //   console.log(data);
+    //   const page = parseInt(data.page) || 0;
+    //   const showItem = parseInt(data.showItem) || 6;
+    //   console.log(page, showItem);
 
-      const cursor = await FoodsCollection.find().toArray();
-      res.send(cursor);
+    //   const cursor = await FoodsCollection.find()
+    //     .skip(page * showItem)
+    //     .limit(showItem)
+    //     .toArray();
+    //   res.send(cursor);
+    // });
+
+    //allFood
+    app.get("/allFood", async (req, res) => {
+      try {
+        const page = parseInt(req.query.page) || 0;
+        const showItem = parseInt(req.query.showItem) || 10;
+
+        const search = req.query.search || "";
+        const category = req.query.category || "";
+        const type = req.query.type || "";
+        const minPrice = Number(req.query.minPrice) || 0;
+        const maxPrice = Number(req.query.maxPrice) || Infinity;
+        const minCal = Number(req.query.minCal) || 0;
+        const maxCal = Number(req.query.maxCal) || Infinity;
+
+        const filter = {
+          $and: [
+            search ? { foodName: { $regex: search, $options: "i" } } : {},
+            category ? { foodCategory: category } : {},
+            type ? { foodType: type } : {},
+            { price: { $gte: minPrice, $lte: maxPrice } },
+            { calorie: { $gte: minCal, $lte: maxCal } },
+          ],
+        };
+
+        const totalCount = await FoodsCollection.countDocuments(filter);
+
+        const items = await FoodsCollection.find(filter)
+          .skip(page * showItem)
+          .limit(showItem)
+          .toArray();
+
+        res.send({ items, totalCount });
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ items: [], totalCount: 0 });
+      }
     });
+
     //Update a food
     app.put("/updateFood", async (req, res) => {
       const data = req.body;
@@ -254,15 +307,14 @@ async function run() {
       }
 
       // extract food IDs and convert to ObjectId
-      const foodIds = userPurchases.purchaseItems.map(
-        (item) => new ObjectId(item.foodId)
-      );
+      const foodIds = userPurchases.purchaseItems.map((item) => item.foodId);
 
       // get full food info for those IDs
       const fullFoods = await FoodsCollection.find({
         _id: { $in: foodIds },
       }).toArray();
 
+      // console.log(fullFoods); // this is empty
       // merge quantity & purchaseDate with the food info
       const purchasesWithDetails = fullFoods.map((food) => {
         const purchaseInfo = userPurchases.purchaseItems.find(
