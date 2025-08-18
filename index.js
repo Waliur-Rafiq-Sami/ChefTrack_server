@@ -20,6 +20,7 @@ app.use(
 app.use(express.json());
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.ytzwbuc.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
+// const uri = `mongodb+srv://waliurrafiqsami:nxCmgzbI9DmRw58x@cluster0.ytzwbuc.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
   serverApi: {
@@ -47,6 +48,34 @@ async function run() {
       .db("chefTrack")
       .collection("PurchaseCollection");
 
+    // Home Page Data Load
+    app.get("/foodForHomePage", async (req, res) => {
+      const q1 = { foodType: "Top food" };
+      const r1 = await FoodsCollection.find(q1).limit(6).toArray();
+      const q2 = { foodType: "Special" };
+      const r2 = await FoodsCollection.find(q2).limit(6).toArray();
+      const q3 = { foodType: "Unique" };
+      const r3 = await FoodsCollection.find(q3).limit(6).toArray();
+      const q4 = { foodType: "Expansive" };
+      const r4 = await FoodsCollection.find(q4).limit(6).toArray();
+      res.send({ r1, r2, r3, r4 });
+    });
+
+    //new user add.
+    app.post("/addNewUser", async (req, res) => {
+      const data = req.body;
+      const filter = { email: req.body.email };
+      const isFind = await userInformationCollection.findOne(filter);
+      if (isFind) {
+        res.send(isFind);
+      } else {
+        const result = await userInformationCollection.insertOne(data);
+        res.send(result);
+      }
+    });
+
+    // ---------------------------------------------
+
     //userInformation
     app.get("/profile/:email", async (req, res) => {
       const userEmail = req.params.email;
@@ -55,11 +84,11 @@ async function run() {
       const result = await userInformationCollection.findOne(query);
       res.send(result);
     });
+
     app.put("/profile", async (req, res) => {
       const addUser = req.body;
       const userEmail = addUser.email;
-      // console.log("Received email:", userEmail);
-      // console.log("Received:", addUser);
+
       const filter = { email: userEmail };
       const updateDoc = {
         $set: {
@@ -232,7 +261,6 @@ async function run() {
     // });
     app.post("/MyPurchasePage", async (req, res) => {
       const { email, foodId, purchaseDate, quantity = 1 } = req.body;
-
       const userPurchase = await PurchaseCollection.findOne({ email });
 
       if (!userPurchase) {
@@ -307,7 +335,9 @@ async function run() {
       }
 
       // extract food IDs and convert to ObjectId
-      const foodIds = userPurchases.purchaseItems.map((item) => item.foodId);
+      const foodIds = userPurchases.purchaseItems.map(
+        (item) => new ObjectId(item.foodId)
+      );
 
       // get full food info for those IDs
       const fullFoods = await FoodsCollection.find({
